@@ -1,15 +1,17 @@
 ﻿(*
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-'Of Turtles & Discriminated Unions'
+Creating Turtle graphics in F#
 
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-The goal of this exercise is to introduce F# discriminated
-unions, and how they can be used to design a DSL.
+The goal of this exercise is to show how F# discriminated
+unions can be used to design a Domain specific language, 
+or DSL.
 
 We will write a simplfied version of the LOGO/Turtle 
-language, using it to create SVG images.
+language, and use it to create an SVG image of our 
+turtle's path.
 
 For a quick example of Turtle/LOGO, here is an online 
 version: http://www.transum.org/software/Logo/
@@ -17,7 +19,7 @@ version: http://www.transum.org/software/Logo/
 Our strategy will be to create the instructions for our 
 language, using F# discriminated unions, and transform a 
 list of instructions into a list of SVG lines, which we will
-render in an html document.
+put into an html document that can be viewed in the browser.
 *)
 
 
@@ -26,11 +28,11 @@ Creating an image with SVG
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 See the following for information on SVG:
-http://www.w3schools.com/svg/
+https://www.w3schools.com/graphics/svg_intro.asp
 *)
 
 
-// TODO: run the following code
+// TODO: run the following block of code.
 
 let svgExample = """
 <html>
@@ -40,15 +42,16 @@ let svgExample = """
       <line x1="10" y1="20" x2="90" y2="80" stroke="red" stroke-width="2" />
     </svg>
   </body>
-</html>"""
+</html>
+"""
 
-let path = __SOURCE_DIRECTORY__ + "/turtles.html"
+let outputPath = __SOURCE_DIRECTORY__ + "/turtles.html"
 
-System.IO.File.WriteAllText(path,svgExample)
+System.IO.File.WriteAllText(outputPath, svgExample)
 
 
 // TODO: this should have created a document "turtle.html"
-// Open it in your browser - this will be our output.
+// This is our output: open it in your browser.
 
 
 
@@ -56,16 +59,20 @@ System.IO.File.WriteAllText(path,svgExample)
 Filling in a template
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-Instead of having the content of the <svg> ... </svg> 
-block being pre-filled, we want now to create a few lines,
-and "inject" them as content into a template.
+The previous example uses a static SVG file, that draws
+a single line.
+We want to create the content of that file dynamically, 
+using code to add as many lines as we want.
 *)
 
-// we will use sprintf "%s" to inject our content as a
-// string inside the template:
+// We will use sprintf to format strings.
+// This example inserts "some content" in a template, 
+// using %s as a placeholder.
+// TODO: run the following block of code.
+
 let sprintfDemo = sprintf "<content start>%s</content end>" "some content"
 
-let inTemplate content =
+let svgTemplate content =
     sprintf """
 <html>
 <body>
@@ -76,22 +83,32 @@ let inTemplate content =
 </body>
 </html>""" content
 
-let svgLine (x1,y1,x2,y2) =
-    sprintf
-        """<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="black" />"""
-        x1 y1 x2 y2
+let svgLine ((x1, y1), (x2, y2)) =
+    sprintf 
+        """<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="black" />""" 
+        x1 y1 x2 y2 
+
+
+// Now we have: 
+// a function svgLine that takes 2 points and creates
+// a SVG line between them,
+// a function svgTemplate that takes in content and 
+// inserts it into an html page.
+// We can now create more interesting graphics!
 
 
 // TODO
-// run the following program, which should create a square
-// and refresh / reopen the turtle.html file in the browser
+// run the following block of code.
+// We create first a list of pairs of points, which we
+// transform into a list of SVG lines, and insert
+// into the SVG template. 
 
 let pointsForSquare = 
     [ 
-        (20.0, 20.0, 20.0, 100.0)
-        (20.0, 100.0, 100.0, 100.0)
-        (100.0, 100.0, 100.0, 20.0)
-        (100.0, 20.0, 20.0, 20.0)
+        (20.0, 20.0), (20.0, 100.0)
+        (20.0, 100.0), (100.0, 100.0)
+        (100.0, 100.0), (100.0, 20.0)
+        (100.0, 20.0), (20.0, 20.0)
     ]
 
 let squareAsSvg =
@@ -101,13 +118,18 @@ let squareAsSvg =
     // contatenate into one string
     |> String.concat "\n"
     // inject into the template
-    |> inTemplate
+    |> svgTemplate
 
-System.IO.File.WriteAllText(path,squareAsSvg)
+System.IO.File.WriteAllText(outputPath, squareAsSvg)
+
+// At that point, the turtles.html file should have
+// been updated, and show a square.
 
 
-// TODO
-// create a triangle... or whatever you want!
+// TODO:
+// create a triangle with sides of length 30, 40 and 50.
+// Note: this is a right triangle.
+// Or... create whatever shape you want! :)
 
 
 
@@ -116,12 +138,11 @@ System.IO.File.WriteAllText(path,squareAsSvg)
 Defining our language
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-Next, we are going to define our language, using
-Discriminated Unions to represent the supported
-instructions.
+Next, we are going to define our version of the Turtle/LOGO
+language, using Discriminated Unions.
 *)
 
-// our initial language contains 3 instructions:
+// Our initial language contains 3 instructions for the turtle:
 // (go) forward, (turn) left, repeat
 type INSTRUCTION =
     | FORWARD of float // move fwd by x pixels
@@ -155,52 +176,83 @@ let complexProgram =
 Computing the position of the Turtle
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-What we want now is to take an initial position for the turtle,
-and create the list of all its successive states, when we apply
-a program (a list of instructions) to it.
+What we want now is to take the initial position of the 
+turtle, apply a list of instructions, and get back the 
+list of all the successive states of the turtle.
 *)
 
-// the current state of the turtle: 
-// position = where the turtle is on screen
-// angle = what direction the turtle is pointed to
+// The current state of the turtle consists of: 
+// a Position = where the turtle is on screen
+// an Angle = what direction the turtle is facing.
+// We create a type, State, to describe that: 
 type State = { X:float; Y:float; Angle:float }
 
+// We will work with 360 degrees, but will need
+// to convert to radians for calculation purposes.
+// We use the built-in value for Pi.
 let PI = System.Math.PI
 let toRadians angle = angle * 2.0 * PI / 360.0
 
-let moveForward (state:State) length =
+// moveForward takes a state of type State, 
+// the current position of our turtle, 
+// and computes back where the turtle lands 
+// if we push it in its current direction
+// for a given distance.
+let moveForward (state:State) distance =
     { state with
-        X = state.X + length * cos (state.Angle |> toRadians)
-        Y = state.Y + length * sin (state.Angle |> toRadians) }
+        X = state.X + distance * cos (state.Angle |> toRadians)
+        Y = state.Y + distance * sin (state.Angle |> toRadians) 
+    }
 
 let turn (state:State) angle =
     { state with 
-        Angle = (state.Angle + angle) % 360.0 }
+        Angle = (state.Angle + angle) % 360.0 
+    }
 
-// we can now recursively process a program:
-// we maintain a list of the states we generated so far,
-// and process the instruction at the head of the
-// instructions list, until there is nothing left.
-let rec execute (states:State list) (program:INSTRUCTION list) =
+let turtleState = {
+    X = 0.0
+    Y = 0.0
+    Angle = 180.0
+    }
+
+let afterMove1 = moveForward turtleState 100.0
+let afterMove2 = turn afterMove1 90.0
+
+
+(*
+Execute a list of instructions to move the Turtle
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+*)
+
+
+// We want to transform a program - a list of instructions
+// for the turtle - into a list of states. We will take
+// the instructions one by one, progressively computing the
+// new position and appending it to a list of states.
+// We will do that, until we have no further instructions.
+let rec execute (states: State list) (program: INSTRUCTION list) =
     match states with
     // we need a starting state
     | [] -> failwith "Starting state required"
     // the current state is the head of the list of states
     | currentState :: previousStates ->
         match program with
-        // no instruction left: return the list of states
+        // When there is no instruction left, 
+        // return the list of states: we are done
         | [] -> states
-        // otherwise, pick the head instruction to process
+        // otherwise, pick the head instruction and use it
+        // to compute the next state
         | head :: tail ->
-            // process each of the instruction types we support
+            // for each instruction we have (FORWARD, LEFT, REPEAT),
+            // apply the matching state transformation
             match head with
-            | FORWARD(length) ->
-                let nextState = moveForward currentState length
+            | FORWARD distance ->
+                let nextState = moveForward currentState distance
                 execute (nextState :: states) tail
-            | LEFT(angle) ->
+            | LEFT (angle) ->
                 let nextState = turn currentState angle
                 execute (nextState :: states) tail
-            | REPEAT(repeat,sub) ->
+            | REPEAT (repeat, sub) ->
                 let rec runSub iter result =
                     match (iter < repeat) with
                     | false -> result
@@ -210,7 +262,10 @@ let rec execute (states:State list) (program:INSTRUCTION list) =
                 let subResult = runSub 0 states
                 execute subResult tail
 
-let run (startState:State) (program:INSTRUCTION list) =
+// We wrap execute inside a run function, which takes
+// just the starting state of the turtle, and a list
+// of instructions:
+let run (startState: State) (program: INSTRUCTION list) =
     let states = execute [ startState ] program
     states |> List.rev
 
@@ -219,8 +274,8 @@ let run (startState:State) (program:INSTRUCTION list) =
 // This should produce a list of the states the Turtle
 // goes through, as the program executes
 
-let initialState = { X = 250.0; Y = 250.0; Angle = 0.0 }
-let simpleProgramOutput = run initialState simpleProgram
+let startState = { X = 250.0; Y = 250.0; Angle = 0.0 }
+let simpleProgramOutput = run startState simpleProgram
 
 
 (*
@@ -228,26 +283,28 @@ Transforming the program output into an SVG file
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 Running a program returns a list of states, the successive
-positions of the 'turtle'. The only thing we need to do at
+positions of the Turtle. The only thing we need to do at
 that point is take all these states, group them in pairs, 
-and connect their positions with a line.
+and connect their positions with lines.
 *)
 
-let linesBetweenStates (output:State list) =
+let linesBetweenStates (output: State list) =
     output
     |> Seq.pairwise
-    |> Seq.map (fun (state1,state2) ->
-        state1.X, state1.Y, state2.X, state2.Y)
+    |> Seq.map (fun (state1, state2) ->
+        (state1.X, state1.Y), (state2.X, state2.Y)) 
 
-let save (content:string) = 
-    System.IO.File.WriteAllText(path,content)
+let save (content: string) = 
+    System.IO.File.WriteAllText(outputPath, content)
 
-let createSvg (startState:State) (program:INSTRUCTION list) =
+let newLine = "\n"
+
+let createSvg (startState: State) (program: INSTRUCTION list) =
     run startState program
     |> linesBetweenStates
     |> Seq.map svgLine
-    |> String.concat "\n"
-    |> inTemplate
+    |> String.concat newLine
+    |> svgTemplate
     |> save
 
 
@@ -255,7 +312,7 @@ let createSvg (startState:State) (program:INSTRUCTION list) =
 // createSvg from one of the sample programs,
 // and open the turtle.html file in your browser
 
-
+createSvg startState simpleProgram
 
 
 // TODO
